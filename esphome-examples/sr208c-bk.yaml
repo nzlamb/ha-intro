@@ -1,0 +1,189 @@
+esphome:
+  name: sr208c
+  friendly_name: Shuang Ri SR208C Solar Water Controller
+
+bk72xx:
+  board: wb3s
+  framework:
+    version: latest
+
+# Enable logging
+logger:
+  hardware_uart: UART2
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "xZcfwHJVz/TFM/mVzifB0KSgs9y1kqQ0VRIexWi2its="
+
+ota:
+  password: "4d649182ff3662fa580c255cd00bbdac"
+  platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  ap:
+    ssid: "Sr208C Fallback Hotspot"
+    password: "Q9W9D42l6OXc"
+
+time:
+  - platform: homeassistant
+    id: ha_time
+    timezone: "Pacific/Auckland"
+
+status_led:
+  pin:
+    number: RX2
+
+uart:
+  baud_rate: 115200
+  tx_pin: TX1
+  rx_pin: RX1
+
+tuya:
+  time_id: "ha_time"
+
+binary_sensor:
+  - platform: "tuya"
+    name: "HR After Heating"
+    id: "hr"
+    sensor_datapoint: 32
+    icon: "mdi:water-boiler"
+    device_class: "running"
+
+  - platform: "tuya"
+    name: "R1 Circulation Pump"
+    id: "r1"
+    icon: "mdi:pump"
+    sensor_datapoint: 30
+    device_class: "running"
+
+  - platform: "tuya"
+    id: "t3_enabled"
+    sensor_datapoint: 1
+
+number:
+  - platform: "tuya"
+    name: "Manual Temp"
+    id: "mh_temp"
+    icon: "mdi:thermometer-water"
+    device_class: "temperature"
+    unit_of_measurement: "°C"
+    number_datapoint: 4
+    min_value: 10
+    max_value: 80
+    step: 1
+
+select:
+  - platform: "tuya"
+    id: "temp_unit"
+    enum_datapoint: 6
+    optimistic: true
+    icon: "mdi:temperature-celsius"
+    disabled_by_default: True
+    options:
+      0: Celsius
+      1: Fahrenheit
+
+sensor:
+  - platform: "tuya"
+    name: "T1 Collector Temp"
+    id: "t1"
+    sensor_datapoint: 26
+    unit_of_measurement: "°C"
+    device_class: "temperature"
+    state_class: "measurement"
+    icon: "mdi:sun-thermometer"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+      - clamp:
+          max_value: 300
+          ignore_out_of_range: true
+      - lambda: if ((id(temp_unit).active_index() == 1)) return x * (9.0/5.0) + 32.0; else return x;
+
+  - platform: "tuya"
+    name: "T2 Tank Bottom Temp"
+    id: "t2"
+    sensor_datapoint: 22
+    unit_of_measurement: "°C"
+    device_class: "temperature"
+    state_class: "measurement"
+    icon: "mdi:thermometer-chevron-down"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+      - clamp:
+          max_value: 200
+          ignore_out_of_range: true
+      - lambda: if ((id(temp_unit).active_index() == 1)) return x * (9.0/5.0) + 32.0; else return x;
+
+  - platform: "tuya"
+    name: "T3 Tank Top Temp"
+    id: "t3"
+    sensor_datapoint: 21
+    unit_of_measurement: "°C"
+    device_class: "temperature"
+    state_class: "measurement"
+    icon: "mdi:thermometer-chevron-up"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+      - clamp:
+          max_value: 200
+          ignore_out_of_range: true
+      - lambda: if ((id(temp_unit).active_index() == 1)) return x * (9.0/5.0) + 32.0; else return x;
+
+  - platform: wifi_signal
+    name: "RSSI"
+    id: wifi_signal_db
+    icon: "mdi:wifi"
+    unit_of_measurement: "dB"
+    update_interval: 30s
+    entity_category: "diagnostic"
+
+  - platform: internal_temperature
+    name: "CPU Temperature"
+    id: cpu_temp
+    icon: "mdi:thermometer"
+    unit_of_measurement: "°C"
+    update_interval: 30s
+    entity_category: "diagnostic"
+
+  - platform: uptime
+    name: Uptime
+    disabled_by_default: false
+    force_update: false
+    icon: mdi:timer-outline
+    accuracy_decimals: 0
+    device_class: duration
+
+switch:
+  - platform: "tuya"
+    name: "Manual Heating"
+    id: "mh"
+    icon: "mdi:cursor-pointer"
+    switch_datapoint: 8
+
+button:
+  # Need to implement trigger from Tuya reset message
+  - platform: factory_reset
+    id: "wlan_reset"
+    icon: "mdi:restart-alert"
+
+  # Add this because of LT UART sync issues
+  - platform: restart
+    name: "Restart WiFi Module"
+    icon: "mdi:restart"
+    entity_category: "diagnostic"
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+      icon: "mdi:ip-network"
+    ssid:
+      name: "SSID"
+      icon: "mdi:wifi"

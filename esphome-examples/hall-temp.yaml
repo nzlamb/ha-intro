@@ -1,0 +1,39 @@
+esphome:
+  name: hall-temp
+  friendly_name: hall-temp
+
+esp8266:
+  board: esp01_1m
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "1LLu3gDTOPxkJ1nq1mEsvNrNk8YNUE13/szlfvSsUsE="
+
+ota:
+  - platform: esphome
+    password: "4868cf2c8dfef7a7a5cd6296ccd5c49d"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Hall-Temp Fallback Hotspot"
+    password: "WGFyQPM8fPlA"
+
+captive_portal:
+
+one_wire:
+  - platform: gpio
+    pin: GPIO4
+
+sensor:
+  - platform: dallas_temp
+    address: 0xbc000003b72eda28
+    name: Hall Temperature
+    update_interval: 30s

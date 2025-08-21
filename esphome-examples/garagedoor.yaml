@@ -1,0 +1,64 @@
+esphome:
+  name: garagedoor
+  friendly_name: GarageDoor
+
+esp8266:
+  board: esp01_1m
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "n+lirwsxOnH9qkRB+VxwK/k0sJqbivLXP+8UV6+D7Ys="
+
+ota:
+  - platform: esphome
+    password: "e671d86b1818d72080ca941dae0a302a"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Garagedoor Fallback Hotspot"
+    password: "vzA0K13JMsgE"
+
+captive_portal:
+
+# Makes the LED on the ESP module show status
+status_led:
+  pin:
+    number: GPIO2
+    # Set to turn off status LED by default
+    #inverted: true
+
+# switch defines the relay output. Leaving the name unset hides this control
+switch:
+  - platform: gpio
+    pin: GPIO4
+    restore_mode: ALWAYS_OFF
+    id: relay1
+    on_turn_on:
+      - delay: 1s
+      - switch.turn_off: relay1
+
+# button template makes the relay emulate a 1-second button press
+button:
+  - platform: template
+    name: "Garage Door Control"
+    on_press:
+      - switch.turn_on: relay1
+
+# sensor input for door state switch
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO5
+      mode:
+        input: true
+        pullup: true
+    name: "Garage Door State"
+    device_class: garage_door

@@ -1,0 +1,115 @@
+esphome:
+  name: display1
+  friendly_name: display1
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "abEZTHuuB36wLUM3eqXmPGhTa6q660oiVvXjAPBiJj8="
+
+ota:
+  - platform: esphome
+    password: "59031631c3b847ff5958fd66b8cb65c4"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Display1 Fallback Hotspot"
+    password: "hXzHdJ9GB8c4"
+
+captive_portal:
+  
+
+# ============================================================ 
+# ESPHome Display related setup
+#
+# Create a font to use, add and remove glyphs as needed. 
+font:
+  - file: gfonts://Roboto
+    id: roboto
+    size: 20
+    glyphs: "!\"%()+=,-_.:°0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ abcdefghijklmnopqrstuvwxyzåäö"
+
+# Create a Home Assistant blue color
+color:
+  - id: ha_blue
+    hex: 51c0f2
+
+# ============================================================ 
+# Home Assistant related setup
+#
+light:
+  - platform: monochromatic
+    output: backlight_pwm
+    name: Display Backlight
+    id: backlight
+    restore_mode: ALWAYS_ON
+  # Make RGB LED accessible in HA
+  - platform: rgb
+    name: RGB
+    id: led
+    red: led_red
+    green: led_green
+    blue: led_blue
+    restore_mode: ALWAYS_OFF
+
+# ============================================================ 
+# Hardware related setup
+#
+# Setup SPI for the display. The ESP32-2432S028R uses separate SPI buses for display and touch
+spi:
+  - id: tft
+    clk_pin: GPIO14
+    mosi_pin: GPIO13
+    miso_pin: GPIO12
+  - id: touch
+    clk_pin: GPIO25
+    mosi_pin: GPIO32
+    miso_pin: GPIO39
+
+output:
+  # Setup a pin to control the backlight
+  - platform: ledc
+    pin: GPIO21
+    id: backlight_pwm
+  # RGB LED
+  - platform: ledc
+    pin: GPIO4
+    id: led_red
+    inverted: true
+  - platform: ledc
+    pin: GPIO16
+    id: led_green
+    inverted: true
+  - platform: ledc
+    pin: GPIO17
+    id: led_blue
+    inverted: true
+
+# Setup the ili9xxx platform
+#
+# Display is used as 240x320 by default so we rotate it to 90°
+display:
+  - platform: ili9xxx
+    model: ili9341
+    spi_id: tft
+    cs_pin: GPIO15
+    dc_pin: GPIO2
+    rotation: 90
+    invert_colors: false
+    color_palette: 8BIT # Display will fail to initialise without this
+    lambda: |-
+      it.print(160, 140, id(roboto), id(ha_blue), TextAlign::BOTTOM_CENTER, "Hello World!");
+      it.rectangle(0, 0, 320, 240, id(ha_blue));
+

@@ -1,0 +1,364 @@
+substitutions:
+### Modify only the following 6 lines.
+  zone_1_name: Sprinkler Zone 1
+  zone_2_name: Sprinkler Zone 2
+  zone_3_name: Sprinkler Zone 3
+  zone_4_name: Sprinkler Zone 4
+  software_version: 2023 09 11 V08
+  sensor_update_frequency: 1s
+  log_level: warn # Enable levels logging https://esphome.io/components/logger.html
+  # none, error, warn, info, debug (default), verbose, very_verbose
+  # changed log level from debug to warn 11/13 by mgamache
+
+  zone_1_valve_id: valve_0
+  zone_2_valve_id: valve_1
+  zone_3_valve_id: valve_2
+  zone_4_valve_id: valve_3
+  esphome_name: sprinkler-test
+  esphome_platform: ESP32
+  esphome_board: esp32dev
+  esphome_comment: Four Valve Irrigation Control
+  esphome_project_name: JAYA.Five Valve Irrigation Control
+  esphome_project_version: Irrigation Controller, $software_version
+  devicename: irrigation_controller
+  upper_devicename: "Irrigation Controller"
+  uom: Min # this overrides the uom in sprinkler -> run_duration 
+
+
+#Define Project Deatils and ESP Board Type
+esphome:
+  name: $esphome_name
+  comment: $esphome_comment
+  project:
+    name: $esphome_project_name
+    version: $esphome_project_version
+  on_boot:
+    priority: -100
+    then:
+      # Set default state for Valve Status
+      - text_sensor.template.publish:
+          id: valve_status
+          state: "Idle"
+      # Set multiplier to 60, convert seconds to minutes
+      - sprinkler.set_multiplier:
+          id: $devicename
+          multiplier: 60
+
+esp32:
+  board: $esphome_board
+  framework:
+    type: esp-idf
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "XjwjCm8UN5R2yFyB5hvlCQygndskpIp4G+WLu55gD2w="
+
+ota:
+  - platform: esphome
+    password: "NKm34kyC2aTLlWz5gnCU1OqDaOCpE8BI"
+  - platform: web_server
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Backyardirrigation"
+    password: "P8iIeeNNQBSn"
+
+captive_portal:
+
+
+logger:
+  level: DEBUG
+  logs:
+    text_sensor: ERROR
+
+web_server:
+  port: 80
+  auth:
+    username: admin
+    password: password
+  version: 2 
+# Sync time with Home Assistant.
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+
+###############################################
+# Binary Sensor.
+###############################################
+binary_sensor:
+  - platform: homeassistant
+    # prevent deep sleep - Needs further investigation on usefullness
+    id: prevent_deep_sleep
+    name: "$upper_devicename Prevent Deep Sleep"
+    entity_id: input_boolean.prevent_deep_sleep 
+#  - platform: gpio
+#    pin:
+#      number: GPIO25
+#      inverted: false
+#      mode:
+#        input: true
+#        pullup: true 
+#    name: Rain Sensor
+
+
+###############################################
+# Text sensors with general information.
+###############################################
+text_sensor:
+  - platform: version # Expose ESPHome version as sensor.
+    name: $esphome_name ESPHome Version
+    hide_timestamp: false
+  - platform: wifi_info
+    ip_address:
+      name: "$esphome_name IP"
+    ssid:
+      name: "$esphome_name SSID"
+    bssid:
+      name: "$esphome_name BSSID"
+  
+# Expose Time Remaining as a sensor
+#  - platform: template
+#    id: time_remaining
+#    name: $upper_devicename Time Remaining
+#    update_interval: $sensor_update_frequency
+#    icon: "mdi:timer-sand"
+#    lambda: |-
+#      int seconds = round(id($devicename).time_remaining_active_valve().value_or(0));
+#      int days = seconds / (24 * 3600);
+#      seconds = seconds % (24 * 3600);
+#      int hours = seconds / 3600;
+#      seconds = seconds % 3600;
+#      int minutes = seconds /  60;
+#      seconds = seconds % 60;
+#      return {
+#        (days ? String(days) + "d " : "") + 
+#        (hours ? String(hours) + "h " : "") +
+#        (minutes ? String(minutes) + "m " : "") +
+#        String(seconds) + "s"
+#      ;
+
+
+  # Expose Progress Percent as a sensor.
+  - platform: template
+    id: progress_percent
+    name: $upper_devicename Progress %
+    update_interval: $sensor_update_frequency
+    icon: "mdi:progress-clock"
+    lambda: |-
+      int progress_percent = round(((id($devicename).valve_run_duration_adjusted(id($devicename).active_valve().value_or(0)) - id($devicename).time_remaining_active_valve().value_or(0)) * 100 / id($devicename).valve_run_duration_adjusted(id($devicename).active_valve().value_or(0))));
+      std::string progress_percent_as_string = std::to_string(progress_percent);
+      return progress_percent_as_string +"%";
+
+  # Expose Valve Status as a sensor.
+  - platform: template
+    id: valve_status
+    name: $upper_devicename Status
+    update_interval: never
+    icon: "mdi:information-variant"
+
+  #- platform: template # Expose the board type as a sensor
+  #  id: espboard_type
+  #  icon: "mdi:developer-board"
+  #  name: $esphome_name ESPBoard
+  #  lambda: |-
+  #    return to_string("${esphome_board}");
+
+# https://esphome.io/devices/nodemcu_esp32.html
+# Enable On-Board Status LED.
+status_led:
+  pin:
+    number: GPIO23
+    inverted: true
+
+sensor:
+  # Uptime sensor.
+  - platform: uptime
+    name: $upper_devicename Uptime
+
+  # WiFi Signal sensor.
+  - platform: wifi_signal
+    name: $upper_devicename WiFi Signal
+    update_interval: 60s
+
+###############################################
+# Configuration to set multiplier via number 
+############################################### 
+number:
+  - platform: template
+    id: $zone_1_valve_id
+    name: $zone_1_name
+    min_value: 1
+    max_value: 60
+    step: 1
+    unit_of_measurement: $uom
+    icon: "mdi:timer-outline"
+    mode: box # Defines how the number should be displayed in the UI
+    lambda: "return id($devicename).valve_run_duration(0);"
+    set_action:
+      - sprinkler.set_valve_run_duration:
+          id: $devicename
+          valve_number: 0
+          run_duration: !lambda 'return x;'
+  - platform: template
+    id: $zone_2_valve_id
+    name: $zone_2_name
+    min_value: 1
+    max_value: 60
+    step: 1
+    unit_of_measurement: $uom
+    icon: "mdi:timer-outline"
+    mode: box # Defines how the number should be displayed in the UI
+    lambda: "return id($devicename).valve_run_duration(1);"
+    set_action:
+      - sprinkler.set_valve_run_duration:
+          id: $devicename
+          valve_number: 1
+          run_duration: !lambda 'return x;'
+  - platform: template
+    id: $zone_3_valve_id
+    name: $zone_3_name
+    min_value: 1
+    max_value: 60
+    step: 1
+    unit_of_measurement: $uom
+    icon: "mdi:timer-outline"
+    mode: box # Defines how the number should be displayed in the UI
+    lambda: "return id($devicename).valve_run_duration(2);"
+    set_action:
+      - sprinkler.set_valve_run_duration:
+          id: $devicename
+          valve_number: 2
+          run_duration: !lambda 'return x;'
+  - platform: template
+    id: $zone_4_valve_id
+    name: $zone_4_name
+    min_value: 1
+    max_value: 60
+    step: 1
+    unit_of_measurement: $uom
+    icon: "mdi:timer-outline"
+    mode: box # Defines how the number should be displayed in the UI
+    lambda: "return id($devicename).valve_run_duration(3);"
+    set_action:
+      - sprinkler.set_valve_run_duration:
+          id: $devicename
+          valve_number: 3
+          run_duration: !lambda 'return x;'
+###############################################
+# Main Sprinkler Controller
+###############################################
+sprinkler:
+  - id: $devicename
+    main_switch:
+      name: "Start/Stop/Resume"
+      id: main_switch
+    auto_advance_switch: "Auto Advance"
+    valve_open_delay: 2s
+    valves:
+      - valve_switch: $zone_1_name
+        enable_switch: Enable $zone_1_name
+        run_duration: 15s
+        valve_switch_id: ${devicename}_1
+      - valve_switch: $zone_2_name
+        enable_switch: Enable $zone_2_name
+        run_duration: 15s
+        valve_switch_id: ${devicename}_2
+      - valve_switch: $zone_3_name
+        enable_switch: Enable $zone_3_name
+        run_duration: 15s
+        valve_switch_id: ${devicename}_3
+      - valve_switch: $zone_4_name
+        enable_switch: Enable $zone_4_name
+        run_duration: 15s
+        valve_switch_id: ${devicename}_4
+
+button:
+  - platform: template
+    id: sprinkler_pause
+    name: "Pause"
+    icon: "mdi:pause"
+    on_press:
+      then:
+        - text_sensor.template.publish:
+            id: valve_status
+            state: "Paused"
+        - sprinkler.pause: $devicename
+
+
+####################################################
+# Switch Control to restart the irrigation system.   
+####################################################
+switch:
+  - platform: restart
+    name: "Restart $devicename"
+
+####################################################
+# Hidden I/O  Switches to control irrigation valve relays
+####################################################
+  - platform: gpio
+    name: Relay Board Pin IN1
+    restore_mode: RESTORE_DEFAULT_OFF # Prevents GPIO pin from going high during boot
+    internal: true # Prevents GPIO switch NAME from showing up in Home Assistant
+    id: ${devicename}_1
+    on_turn_on:
+      - text_sensor.template.publish:
+          id: valve_status
+          state: "$zone_1_name Active"
+    on_turn_off:
+      - text_sensor.template.publish:
+          id: valve_status
+          state: "Idle"
+    pin: GPIO32 # D5
+    #inverted: true
+  - platform: gpio
+    name: Relay Board Pin IN2
+    restore_mode: RESTORE_DEFAULT_OFF # Prevents GPIO pin from going high during boot
+    internal: true # Prevents GPIO switch NAME from showing up in Home Assistant
+    id: ${devicename}_2
+    on_turn_on:
+      - text_sensor.template.publish:
+          id: valve_status
+          state: "$zone_2_name Active"
+    on_turn_off:
+      - text_sensor.template.publish:
+          id: valve_status
+          state: "Idle"
+    pin: GPIO33 # D6
+    #inverted: true
+  - platform: gpio
+    name: Relay Board Pin IN3
+    restore_mode: RESTORE_DEFAULT_OFF # Prevents GPIO pin from going high during boot
+    internal: true # Prevents GPIO switch NAME from showing up in Home Assistant
+    id: ${devicename}_3
+    on_turn_on:
+      - text_sensor.template.publish:
+          id: valve_status
+          state: "$zone_3_name Active"
+    on_turn_off:
+      - text_sensor.template.publish:
+          id: valve_status
+          state: "Idle"
+    pin: GPIO25 # D7
+    #inverted: true
+  - platform: gpio
+    name: Relay Board Pin IN4
+    restore_mode: RESTORE_DEFAULT_OFF # Prevents GPIO pin from going high during boot
+    internal: true # Prevents GPIO switch NAME from showing up in Home Assistant
+    id: ${devicename}_4
+    on_turn_on:
+      - text_sensor.template.publish:
+          id: valve_status
+          state: "$zone_4_name Active"
+    on_turn_off:
+      - text_sensor.template.publish:
+          id: valve_status
+          state: "Idle"
+    pin: GPIO26 # D8
+    #inverted: true
+

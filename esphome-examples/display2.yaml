@@ -1,0 +1,181 @@
+esphome:
+  name: display2
+  friendly_name: Display2
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "6C8W599zrca12fPLZKb+3APFD7oeoItfg/JW1ZdoFNg="
+
+ota:
+  - platform: esphome
+    password: "9e3ffaa672b1a326479e7ba97a547ba4"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Display2 Fallback Hotspot"
+    password: "n2MlwUGsE5KR"
+
+captive_portal:
+    
+# ============================================================ 
+# ESPHome Display related setup
+#
+# Create a font to use, add and remove glyphs as needed. 
+font:
+  - file: 'gfonts://Roboto'
+    id: arimo48
+    size: 16
+    glyphs: " .,°0123456789:ACFHNOPTaceklmnoprtuw"
+  - file: 'gfonts://Roboto'
+    id: arimo14
+    size: 14
+    glyphs: "0123456789"
+
+# Create a Home Assistant blue color
+color:
+  - id: white
+    hex: ffffff
+  - id: yellow
+    hex: ffff00
+  - id: green
+    hex: 00c000
+  - id: blue
+    hex: 51c0f2
+
+# Define the graph
+# You can change the duration as needed, but you will need to change x_grid accordingly.
+graph:
+  - id: temp_graph
+    duration: 1h
+    width: 300
+    height: 180
+    x_grid: 10min
+    y_grid: 10.0
+    max_value: 80.0
+    min_value: 0.0
+    traces:
+      - sensor: temp1
+        line_type: SOLID
+        line_thickness: 2
+        color: yellow
+      - sensor: temp2
+        line_type: SOLID
+        continuous: true
+        line_thickness: 2
+        color: blue
+      - sensor: temp3
+        line_type: SOLID
+        line_thickness: 2
+        color: green
+
+# ============================================================ 
+# Home Assistant related setup
+#
+light:
+  - platform: monochromatic
+    output: backlight_pwm
+    name: Display Backlight
+    id: backlight
+    restore_mode: ALWAYS_ON
+
+# Setup the sensor, we will get this data from Home Assistant
+# Change entity_id to the name of your sensor inside of Home Assistant
+sensor:
+  - platform: homeassistant
+    id: temp1
+    entity_id: sensor.sr208c_t1_collector_temp
+    internal: true
+  - platform: homeassistant
+    id: temp2
+    entity_id: sensor.sr208c_t2_tank_bottom_temp
+    internal: true
+  - platform: homeassistant
+    id: temp3
+    entity_id: sensor.sr208c_t3_tank_top_temp
+    internal: true
+
+binary_sensor:
+  - platform: homeassistant
+    id: pump
+    entity_id: binary_sensor.sr208c_r1_circulation_pump
+    internal: true
+  - platform: homeassistant
+    id: afterheat
+    entity_id: binary_sensor.sr208c_hr_after_heating
+    internal: true   
+
+# ============================================================ 
+# Hardware related setup
+#
+# Setup SPI for the display. The ESP32-2432S028R uses separate SPI buses for display and touch
+spi:
+  - id: tft
+    clk_pin: GPIO14
+    mosi_pin: GPIO13
+    miso_pin: GPIO12
+  - id: touch
+    clk_pin: GPIO25
+    mosi_pin: GPIO32
+    miso_pin: GPIO39
+
+# Setup a pin to control the backlight
+output:
+  - platform: ledc
+    pin: GPIO21
+    id: backlight_pwm
+
+# Setup the ili9xxx platform
+#
+# Display is used as 240x320 by default so we rotate it to 90°
+#
+# We print the graph texts manaully as the graph component still don't support that, then
+# we output the current value on top of the display, followed by the graph below it.
+#
+display:
+  - platform: ili9xxx
+    model: ili9341
+    spi_id: tft
+    cs_pin: GPIO15
+    dc_pin: GPIO2
+    rotation: 90
+    invert_colors: false
+    color_palette: 8BIT
+    lambda: |-
+      it.fill(id(Color::BLACK));
+      it.print(0, 60, id(arimo14), TextAlign::TOP_LEFT, "80");
+      it.print(0, 105, id(arimo14), TextAlign::CENTER_LEFT, "60");
+      it.print(0, 150, id(arimo14), TextAlign::CENTER_LEFT, "40");
+      it.print(0, 195, id(arimo14), TextAlign::CENTER_LEFT, "20");
+      it.print(0, 240, id(arimo14), TextAlign::BOTTOM_LEFT, "0");
+      if (id(temp1).has_state()) {
+        it.printf(10, 0, id(arimo48), yellow, TextAlign::TOP_LEFT, "Collector temp:   %.1f °C", id(temp1).state);
+      }
+      if (id(temp3).has_state()) {
+        it.printf(10, 16, id(arimo48), green, TextAlign::TOP_LEFT, "Tank upper temp: %.1f °C", id(temp3).state);
+      }
+      if (id(temp2).has_state()) {
+        it.printf(10, 32, id(arimo48), blue, TextAlign::TOP_LEFT, "Tank lower temp: %.1f °C", id(temp2).state);
+      }
+      if (id(temp2).has_state()) {
+        it.printf(10, 32, id(arimo48), blue, TextAlign::TOP_LEFT, "Tank lower temp: %.1f °C", id(temp2).state);
+      }
+      if (id(afterheat).has_state()) {
+        it.printf(220, 0, id(arimo48), TextAlign::TOP_LEFT, "Heat:   %s", id(afterheat).state ? "ON" : "OFF");
+      }
+      if (id(pump).has_state()) {
+        it.printf(220, 16, id(arimo48), TextAlign::TOP_LEFT, "Pump: %s", id(pump).state ? "ON" : "OFF");
+      }
+      it.graph(20, 60, id(temp_graph));

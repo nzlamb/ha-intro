@@ -1,0 +1,61 @@
+# Demo for 4 channel relay board
+
+esphome:
+  name: relay4
+  friendly_name: relay4
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "xN3dKGGseG1jb2FceE3YHxtXmzFtVd/6CDxHc6JGg2o="
+
+ota:
+  - platform: esphome
+    password: "990a2ae882b2c2ffb99d7c0bc7acd7a4"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Relay4 Fallback Hotspot"
+    password: "PhOkhr9edNyM"
+
+captive_portal:
+
+web_server:
+  ota: True
+  version: 3
+  port: 80
+
+status_led:
+  pin:
+    number: GPIO23
+    inverted: True
+
+sensor:
+  - platform: internal_temperature
+    name: "Internal Temperature"
+
+switch:
+  - platform: gpio
+    name: "Relay1"
+    pin: GPIO32
+  - platform: gpio
+    name: "Relay2"
+    pin: GPIO33
+  - platform: gpio
+    name: "Relay3"
+    pin: GPIO25
+  - platform: gpio
+    name: "Relay4"
+    pin: GPIO26
